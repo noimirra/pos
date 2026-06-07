@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>おにぎりPOS v0.121</title>
+    <style>
+        :root {
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --border-color: #333;
+            --text-color: #f5f5f7;
+            --text-dim: #8e8e93;
+            --blue: #007aff;
+            --red: #ff3b30;
+            --green: #34c759;
+            --purple: #af52de;
+            --orange: #ff9500;
+            --gray: #3a3a3c;
+        }
+        * { box-sizing: border-box; -webkit-user-select: none; user-select: none; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0; padding: 8px;
+            display: flex; flex-direction: column;
+            height: 100vh; overflow: hidden;
+        }
+        
+        /* 1. ステータス・ディスプレイエリア */
+        .panel {
+            background: #000; border: 1px solid var(--border-color);
+            border-radius: 10px; padding: 8px; margin-bottom: 6px;
+        }
+        .status-line {
+            display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim);
+            margin-bottom: 4px; border-bottom: 1px solid #222; padding-bottom: 4px;
+        }
+        .mode-indicator { font-weight: bold; padding: 2px 6px; border-radius: 4px; }
+        .mode-normal { background: var(--blue); color: #fff; }
+        .mode-minus { background: var(--red); color: #fff; }
+        .mode-present { background: var(--purple); color: #fff; }
+        
+        #display {
+            font-size: 14px; min-height: 22px; line-height: 1.4;
+            word-break: break-all; color: #fff; font-weight: 500;
+        }
+        
+        #stock-display {
+            display: flex; gap: 6px; overflow-x: auto; font-size: 11px;
+            background: #111; padding: 4px; border-radius: 4px; margin-top: 4px;
+        }
+        .stock-item { background: #222; padding: 2px 6px; border-radius: 3px; white-space: nowrap; }
+
+        /* グループ共通 */
+        .section-title { font-size: 10px; color: var(--text-dim); margin: 2px 0 2px 2px; font-weight: 600; }
+        .row { display: flex; gap: 6px; margin-bottom: 6px; }
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 6px; }
+        .grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 6px; }
+        .grid-6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 6px; }
+
+        /* ボタン基本 */
+        button {
+            border: none; border-radius: 10px; color: #fff; font-size: 15px; font-weight: bold;
+            display: flex; align-items: center; justify-content: center;
+            touch-action: manipulation; min-height: 40px; background: var(--gray);
+        }
+        button:active { opacity: 0.6; }
+        
+        /* 管理系ボタン（小ぶり） */
+        .btn-admin { min-height: 32px; font-size: 12px; background: #2c2c2e; border: 1px solid #444; }
+        .state-active { border-color: var(--orange); color: var(--orange); }
+
+        /* モード変更 */
+        .btn-m-normal { background: #0a84ff; }
+        .btn-m-minus { background: #ff453a; }
+        .btn-m-present { background: #bf5af2; }
+        .active-mode { outline: 2px solid #fff; box-shadow: 0 0 8px rgba(255,255,255,0.5); }
+
+        /* 商品ボタン（押しやすく大きく） */
+        .btn-product { min-height: 48px; font-size: 20px; background: #3a3a3c; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+
+        /* 属性ボタン */
+        .btn-attr { background: #2c2c2e; font-size: 14px; }
+        .selected-attr { background: var(--green) !important; color: #000 !important; }
+
+        /* 下部アクション */
+        .btn-undo { background: #545456; font-size: 14px; }
+        .btn-clear { background: #48484a; font-size: 14px; }
+        .btn-save { background: var(--orange); color: #000; font-size: 20px; min-height: 46px; }
+        .btn-csv { background: #e5e5ea; color: #000; font-size: 12px; min-height: 36px; }
+    </style>
+</head>
+<body>
+
+    <div class="panel">
+        <div class="status-line">
+            <div>状態: <span id="op-state">⚠未確認</span></div>
+            <div id="mode-badge" class="mode-indicator mode-normal">通常販売</div>
+            <div id="tx-count">蓄積: 0件</div>
+        </div>
+        <div id="display">READY</div>
+        <div id="stock-display">理論在庫: A:0 | B:0 | C:0 | D:0 | E:0 | c:0</div>
+    </div>
+
+    <div class="row">
+        <button class="btn-admin id-state" style="flex:1" onclick="changeState('✓確認済み')">✓確認</button>
+        <button class="btn-admin id-state" style="flex:1" onclick="changeState('休休業')">休業</button>
+        <button class="btn-admin" style="flex:1.5" onclick="inputSetup()">仕込入力</button>
+        <button class="btn-admin" style="flex:1.5" onclick="adjustStock()">在庫修正</button>
+    </div>
+
+    <div class="grid-3">
+        <button id="mod-normal" class="btn-m-normal active-mode" onclick="setMode('通常')">通常</button>
+        <button id="mod-minus" class="btn-m-minus" onclick="setMode('－')">－</button>
+        <button id="mod-present" class="btn-m-present" onclick="setMode('景')">景</button>
+    </div>
+
+    <div class="section-title">商品</div>
+    <div class="grid-6">
+        <button class="btn-product" onclick="pressProduct('A')">A</button>
+        <button class="btn-product" onclick="pressProduct('B')">B</button>
+        <button class="btn-product" onclick="pressProduct('C')">C</button>
+        <button class="btn-product" onclick="pressProduct('D')">D</button>
+        <button class="btn-product" onclick="pressProduct('E')">E</button>
+        <button class="btn-product" style="background:#545456;" onclick="pressProduct('c')">c</button>
+    </div>
+
+    <div class="section-title">属性（スタンプ / 来店 / 属性1 / 属性2）</div>
+    
+    <div class="grid-4" style="display:grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 6px;">
+        <button class="btn-attr att-stamp" onclick="setAttr('stamp', '有')">有</button>
+        <button class="btn-attr att-stamp" onclick="setAttr('stamp', '無')">無</button>
+        <button class="btn-attr att-traffic" onclick="setAttr('traffic', '歩')">歩</button>
+        <button class="btn-attr att-traffic" onclick="setAttr('traffic', '車')">車</button>
+    </div>
+
+    <div class="grid-5">
+        <button class="btn-attr att-attr1" onclick="setAttr('attr1', '学')">学</button>
+        <button class="btn-attr att-attr1" onclick="setAttr('attr1', '従')">従</button>
+        <button class="btn-attr att-attr1" onclick="setAttr('attr1', '病')">病</button>
+        <button class="btn-attr att-attr1" onclick="setAttr('attr1', '家')">家</button>
+        <button class="btn-attr att-attr1" onclick="setAttr('attr1', '他')">他</button>
+    </div>
+
+    <div class="grid-3">
+        <button class="btn-attr att-attr2" onclick="setAttr('attr2', '男')">男</button>
+        <button class="btn-attr att-attr2" onclick="setAttr('attr2', '女')">女</button>
+        <button class="btn-attr att-attr2" onclick="setAttr('attr2', 'グ')">グ</button>
+    </div>
+
+    <div style="margin-top: auto;">
+        <div class="grid-3" style="margin-bottom: 6px;">
+            <button class="btn-undo" onclick="execUndo()">Undo</button>
+            <button class="btn-clear" onclick="clearCurrent()">消</button>
+            <button class="btn-csv" onclick="exportCSV()">CSV出力</button>
+        </div>
+        <button class="btn-save" style="width: 100%" onclick="saveTransaction()">SAVE (1会計登録)</button>
+    </div>
+
+<script>
+    // 内部データ構造 (v0.121準拠)
+    let db = JSON.parse(localStorage.getItem('pos_v121_db') || '[]');
+    let config = JSON.parse(localStorage.getItem('pos_v121_cfg') || '{"state":"⚠未確認","setup":{"A":0,"B":0,"C":0,"D":0,"E":0,"c":0}}');
+    
+    // 現在入力中の1トランザクションの未確定ステート
+    let currentTx = {
+        mode: '通常', // 通常, －, 景
+        products: [], // {code, quantity, type} typeは'sale'または'present' (－はquantityをマイナスにする)
+        stamp: '',
+        traffic: '',
+        attr1: '',
+        attr2: '',
+        channel: 'Street' // デフォルト
+    };
+
+    // 直前の保存データ保持（1世代のみ登録直後Undo用）
+    let lastSavedTxIndex = null;
+
+    // 起動時初期化
+    window.onload = function() {
+        updateUI();
+    };
+
+    function setMode(m) {
+        currentTx.mode = m;
+        const badge = document.getElementById('mode-badge');
+        badge.className = 'mode-indicator';
+        if(m==='通常') badge.classList.add('mode-normal');
+        if(m==='－') badge.classList.add('mode-minus');
+        if(m==='景') badge.classList.add('mode-present');
+        badge.innerText = m + '販売';
+
+        ['mod-normal','mod-minus','mod-present'].forEach(id => document.getElementById(id).classList.remove('active-mode'));
+        if(m==='通常') document.getElementById('mod-normal').classList.add('active-mode');
+        if(m==='－') document.getElementById('mod-minus').classList.add('active-mode');
+        if(m==='景') document.getElementById('mod-present').classList.add('active-mode');
+    }
+
+    function changeState(s) {
+        config.state = s;
+        saveConfig();
+        updateUI();
+    }
+
+    function inputSetup() {
+        let res = prompt("仕込数量を入力してください (例: A30,B20,c15)", getSetupString());
+        if (res !== null) {
+            let newSetup = {"A":0,"B":0,"C":0,"D":0,"E":0,"c":0};
+            let pairs = res.split(',');
+            pairs.forEach(p => {
+                let match = p.trim().match(/^([A-Eca-z])(\d+)$/);
+                if(match) {
+                    newSetup[match[1]] = parseInt(match[2]);
+                }
+            });
+            config.setup = newSetup;
+            saveConfig();
+            updateUI();
+        }
+    }
+
+    function getSetupString() {
+        return Object.keys(config.setup).map(k => k + config.setup[k]).join(',');
+    }
+
+    function adjustStock() {
+        let note = prompt("理論在庫の差異修正、または特記事項を入力してください:");
+        if(note) {
+            let timestamp = new Date().toLocaleString('ja-JP');
+            db.push({
+                type: 'SYSTEM_LOG',
+                timestamp: timestamp,
+                note: note,
+                state: config.state
+            });
+            saveDB();
+            alert("修正ログを記録しました。");
+            updateUI();
+        }
+    }
+
+    function pressProduct(code) {
+        let qty = 1;
+        let type = 'sale';
+        
+        if (currentTx.mode === '－') {
+            qty = -1;
+        } else if (currentTx.mode === '景') {
+            type = 'present';
+        }
+        
+        currentTx.products.push({ code: code, qty: qty, type: type });
+        updateDisplay();
+    }
+
+    function setAttr(group, value) {
+        if (currentTx[group] === value) {
+            currentTx[group] = ''; // トグル解除
+        } else {
+            currentTx[group] = value;
+        }
+        updateAttrButtons();
+        updateDisplay();
+    }
+
+    function updateAttrButtons() {
+        updateGroupHighlight('att-stamp', currentTx.stamp);
+        updateGroupHighlight('att-traffic', currentTx.traffic);
+        updateGroupHighlight('att-attr1', currentTx.attr1);
+        updateGroupHighlight('att-attr2', currentTx.attr2);
+    }
+
+    function updateGroupHighlight(className, activeValue) {
+        let btns = document.getElementsByClassName(className);
+        for(let i=0; i<btns.length; i++) {
+            if(btns[i].innerText === activeValue) {
+                btns[i].classList.add('selected-attr');
+            } else {
+                btns[i].classList.remove('selected-attr');
+            }
+        }
+    }
+
+    function updateDisplay() {
+        let pText = currentTx.products.map(p => (p.qty < 0 ? '－' : (p.type === 'present' ? '景:' : '')) + p.code).join(' / ');
+        let attrs = [currentTx.stamp, currentTx.traffic, currentTx.attr1, currentTx.attr2].filter(Boolean).join(',');
+        
+        let displayStr = pText || "READY";
+        if(attrs) displayStr += " 【" + attrs + "】";
+        
+        document.getElementById('display').innerText = displayStr;
+    }
+
+    function clearCurrent() {
+        currentTx.products = [];
+        currentTx.stamp = '';
+        currentTx.traffic = '';
+        currentTx.attr1 = '';
+        currentTx.attr2 = '';
+        setMode('通常');
+        updateAttrButtons();
+        updateDisplay();
+    }
+
+    function saveTransaction() {
+        if(currentTx.products.length === 0) return alert("商品が選択されていません");
+        
+        let timestamp = new Date().toLocaleString('ja-JP');
+        
+        // 1会計 = 1レコードの構造化データオブジェクト
+        let record = {
+            type: 'TRANSACTION',
+            timestamp: timestamp,
+            products: [...currentTx.products],
+            stamp: currentTx.stamp || '無',
+            traffic: currentTx.traffic || '他',
+            attr1: currentTx.attr1 || '他',
+            attr2: currentTx.attr2 || 'グ',
+            channel: currentTx.channel,
+            state: config.state
+        };
+        
+        db.push(record);
+        lastSavedTxIndex = db.length - 1; // Undo用にインデックスを保持
+        
+        saveDB();
+        clearCurrent();
+        updateUI();
+    }
+
+    function execUndo() {
+        if(lastSavedTxIndex !== null && db[lastSavedTxIndex]) {
+            if(confirm("直前に登録した1件を削除(Undo)しますか？")) {
+                db.splice(lastSavedTxIndex, 1);
+                lastSavedTxIndex = null;
+                saveDB();
+                updateUI();
+                alert("取り消しました");
+            }
+        } else {
+            alert("登録直後のみUndo可能です。連続した取り消しや過去データの修正は『在庫修正』からログを残すか、CSVで出力して対応してください。");
+        }
+    }
+
+    function calculateStock() {
+        // 仕込初期化
+        let stock = { ...config.setup };
+        
+        // トランザクションから加減算
+        db.forEach(item => {
+            if(item.type === 'TRANSACTION') {
+                item.products.forEach(p => {
+                    if(stock[p.code] !== undefined) {
+                        // 販売(qty:1)ならマイナス、取消(qty:-1)ならプラス、景品(type:'present')も在庫を消費するのでマイナス
+                        stock[p.code] -= p.qty;
+                    }
+                });
+            }
+        });
+        return stock;
+    }
+
+    function updateUI() {
+        document.getElementById('op-state').innerText = config.state;
+        document.getElementById('tx-count').innerText = `蓄積: ${db.filter(d=>d.type==='TRANSACTION').length}件`;
+        
+        // 理論在庫の再計算と表示
+        let currentStock = calculateStock();
+        let stockStr = Object.keys(currentStock).map(k => `${k}:${currentStock[k]}`).join(' | ');
+        document.getElementById('stock-display').innerText = "理論在庫: " + stockStr;
+
+        // 営業状態ボタンのハイライト
+        let btns = document.getElementsByClassName('id-state');
+        for(let i=0; i<btns.length; i++) {
+            if(btns[i].innerText.includes(config.state.replace('✓', '').replace('⚠', ''))) {
+                btns[i].classList.add('state-active');
+            } else {
+                btns[i].classList.remove('state-active');
+            }
+        }
+    }
+
+    function exportCSV() {
+        if(db.length === 0) return alert("データがありません");
+        
+        let csvRows = ["Type,Timestamp,ProductDetails,Stamp,Traffic,Attr1,Attr2,Channel,OperationState,SystemNote"];
+        
+        db.forEach(r => {
+            if(r.type === 'TRANSACTION') {
+                let detail = r.products.map(p => `${p.code}(qty:${p.qty}/type:${p.type})`).join(';');
+                csvRows.push(`"TRANSACTION","${r.timestamp}","${detail}","${r.stamp}","${r.traffic}","${r.attr1}","${r.attr2}","${r.channel}","${r.state}",""`);
+            } else if(r.type === 'SYSTEM_LOG') {
+                csvRows.push(`"SYSTEM_LOG","${r.timestamp}","","","","","","","${r.state}","${r.note.replace(/"/g, '""')}"`);
+            }
+        });
+
+        let csvContent = "data:text/csv;charset=utf-8,\uFEFF" + csvRows.join("\n");
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `POS_DATA_${new Date().toISOString().slice(0,10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        if(confirm("データを完全に初期化(リセット)しますか？\n※CSVが正常に保存されたことを確認した後に実行してください。")) {
+            db = [];
+            lastSavedTxIndex = null;
+            saveDB();
+            updateUI();
+        }
+    }
+
+    function saveDB() { localStorage.setItem('pos_v121_db', JSON.stringify(db)); }
+    function saveConfig() { localStorage.setItem('pos_v121_cfg', JSON.stringify(config)); }
+</script>
+</body>
+</html>
