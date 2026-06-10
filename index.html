@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>おにぎりPOS v0.121</title>
+    <title>おにぎりPOS v0.121_20260610A</title>
     <style>
         :root {
             --bg-color: #121212;
@@ -30,35 +30,39 @@
             height: 100vh; overflow: hidden;
         }
         
-        /* 1. ステータス・ディスプレイエリア */
+        /* ログ・ディスプレイエリア */
         .panel {
             background: #000; border: 1px solid var(--border-color);
             border-radius: 10px; padding: 8px; margin-bottom: 6px;
+            display: flex; flex-direction: column; flex: 1; min-height: 0;
         }
-        .status-line {
-            display: flex; justify-content: space-between; font-size: 11px; color: var(--text-dim);
-            margin-bottom: 4px; border-bottom: 1px solid #222; padding-bottom: 4px;
-        }
-        .mode-indicator { font-weight: bold; padding: 2px 6px; border-radius: 4px; }
-        .mode-normal { background: var(--blue); color: #fff; }
-        .mode-minus { background: var(--red); color: #fff; }
-        .mode-present { background: var(--purple); color: #fff; }
         
+        /* 販売時点ログ表示エリア（5-7行想定） */
+        #log-area {
+            flex: 1; overflow-y: auto; font-size: 11px; color: var(--text-dim);
+            line-height: 1.4; border-bottom: 1px solid #222; margin-bottom: 6px; padding-bottom: 4px;
+        }
+        .log-line { padding: 2px 4px; border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .log-line.selected { background: #3a3a3c; color: #fff; font-weight: bold; }
+
+        /* 入力中画面（READY） */
         #display {
             font-size: 14px; min-height: 22px; line-height: 1.4;
-            word-break: break-all; color: #fff; font-weight: 500;
+            word-break: break-all; color: #fff; font-weight: 500; margin-bottom: 6px;
         }
         
-        #stock-display {
-            display: flex; gap: 6px; overflow-x: auto; font-size: 11px;
-            background: #111; padding: 4px; border-radius: 4px; margin-top: 4px;
+        /* ステータス・理論在庫行 */
+        .status-stock-line {
+            display: flex; align-items: center; font-size: 11px;
+            background: #111; padding: 4px 6px; border-radius: 4px; gap: 8px;
         }
-        .stock-item { background: #222; padding: 2px 6px; border-radius: 3px; white-space: nowrap; }
+        .status-badge { font-weight: bold; white-space: nowrap; }
+        #stock-display { overflow-x: auto; white-space: nowrap; color: var(--text-dim); }
 
         /* グループ共通 */
         .section-title { font-size: 10px; color: var(--text-dim); margin: 2px 0 2px 2px; font-weight: 600; }
-        .row { display: flex; gap: 6px; margin-bottom: 6px; }
         .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 6px; }
+        .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 6px; }
         .grid-5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 6px; }
         .grid-6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; margin-bottom: 6px; }
 
@@ -70,53 +74,43 @@
         }
         button:active { opacity: 0.6; }
         
-        /* 管理系ボタン（小ぶり） */
-        .btn-admin { min-height: 32px; font-size: 12px; background: #2c2c2e; border: 1px solid #444; }
-        .state-active { border-color: var(--orange); color: var(--orange); }
+        /* 上部機能系ボタン */
+        .btn-fn { min-height: 48px; font-size: 14px; background: #2c2c2e; border: 1px solid #444; }
+        .btn-fn-bs { background: #ff453a; font-size: 16px; } /* -キーのカラー */
+        .btn-fn-pres { background: #bf5af2; } /* 景キーのカラー */
+        .mode-active-pres { outline: 2px solid #fff; box-shadow: 0 0 8px rgba(255,255,255,0.5); }
 
-        /* モード変更 */
-        .btn-m-normal { background: #0a84ff; }
-        .btn-m-minus { background: #ff453a; }
-        .btn-m-present { background: #bf5af2; }
-        .active-mode { outline: 2px solid #fff; box-shadow: 0 0 8px rgba(255,255,255,0.5); }
-
-        /* 商品ボタン（押しやすく大きく） */
+        /* 商品ボタン */
         .btn-product { min-height: 48px; font-size: 20px; background: #3a3a3c; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
 
         /* 属性ボタン */
-        .btn-attr { background: #2c2c2e; font-size: 14px; }
+        .btn-attr { background: #2c2c2e; font-size: 14px; min-height: 40px; }
         .selected-attr { background: var(--green) !important; color: #000 !important; }
 
-        /* 下部アクション */
-        .btn-undo { background: #545456; font-size: 14px; }
-        .btn-clear { background: #48484a; font-size: 14px; }
+        /* 最下部アクション統合 */
+        .btn-undoclear { background: #48484a; font-size: 14px; min-height: 46px; }
         .btn-save { background: var(--orange); color: #000; font-size: 20px; min-height: 46px; }
-        .btn-csv { background: #e5e5ea; color: #000; font-size: 12px; min-height: 36px; }
+        .btn-csv { background: #e5e5ea; color: #000; font-size: 12px; min-height: 46px; }
     </style>
 </head>
 <body>
 
     <div class="panel">
-        <div class="status-line">
-            <div>状態: <span id="op-state">⚠未確認</span></div>
-            <div id="mode-badge" class="mode-indicator mode-normal">通常販売</div>
-            <div id="tx-count">蓄積: 0件</div>
-        </div>
+        <div id="log-area"></div>
         <div id="display">READY</div>
-        <div id="stock-display">理論在庫: A:0 | B:0 | C:0 | D:0 | E:0 | c:0</div>
+        <div class="status-stock-line">
+            <div id="status-badge" class="status-badge">⚪️営業前</div>
+            <div id="stock-display">A:0 | B:0 | C:0 | D:0 | E:0 | b:0</div>
+        </div>
     </div>
 
-    <div class="row">
-        <button class="btn-admin id-state" style="flex:1" onclick="changeState('✓確認済み')">✓確認</button>
-        <button class="btn-admin id-state" style="flex:1" onclick="changeState('休休業')">休業</button>
-        <button class="btn-admin" style="flex:1.5" onclick="inputSetup()">仕込入力</button>
-        <button class="btn-admin" style="flex:1.5" onclick="adjustStock()">在庫修正</button>
-    </div>
-
-    <div class="grid-3">
-        <button id="mod-normal" class="btn-m-normal active-mode" onclick="setMode('通常')">通常</button>
-        <button id="mod-minus" class="btn-m-minus" onclick="setMode('－')">－</button>
-        <button id="mod-present" class="btn-m-present" onclick="setMode('景')">景</button>
+    <div class="grid-6">
+        <button class="btn-fn" onclick="toggleOpState()">営業</button>
+        <button class="btn-fn" onclick="inputSetup()">仕込</button>
+        <button class="btn-fn" onclick="execModify()">修正</button>
+        <button class="btn-fn" onclick="inputSpecialNote()">特記</button>
+        <button class="btn-fn btn-fn-bs" onclick="execBackspace()">←</button>
+        <button id="btn-pres" class="btn-fn btn-fn-pres" onclick="togglePresentMode()">景</button>
     </div>
 
     <div class="section-title">商品</div>
@@ -126,12 +120,11 @@
         <button class="btn-product" onclick="pressProduct('C')">C</button>
         <button class="btn-product" onclick="pressProduct('D')">D</button>
         <button class="btn-product" onclick="pressProduct('E')">E</button>
-        <button class="btn-product" style="background:#545456;" onclick="pressProduct('c')">c</button>
+        <button class="btn-product" style="background:#545456;" onclick="pressProduct('b')">b</button>
     </div>
 
     <div class="section-title">属性（スタンプ / 来店 / 属性1 / 属性2）</div>
-    
-    <div class="grid-4" style="display:grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 6px;">
+    <div class="grid-4">
         <button class="btn-attr att-stamp" onclick="setAttr('stamp', '有')">有</button>
         <button class="btn-attr att-stamp" onclick="setAttr('stamp', '無')">無</button>
         <button class="btn-attr att-traffic" onclick="setAttr('traffic', '歩')">歩</button>
@@ -152,69 +145,77 @@
         <button class="btn-attr att-attr2" onclick="setAttr('attr2', 'グ')">グ</button>
     </div>
 
-    <div style="margin-top: auto;">
-        <div class="grid-3" style="margin-bottom: 6px;">
-            <button class="btn-undo" onclick="execUndo()">Undo</button>
-            <button class="btn-clear" onclick="clearCurrent()">消</button>
-            <button class="btn-csv" onclick="exportCSV()">CSV出力</button>
-        </div>
-        <button class="btn-save" style="width: 100%" onclick="saveTransaction()">SAVE (1会計登録)</button>
+    <div class="grid-3">
+        <button class="btn-undoclear" onclick="execUndoOrClear()">Undo/消</button>
+        <button class="btn-save" onclick="saveTransaction()">会計登録</button>
+        <button class="btn-csv" onclick="exportCSV()">CSV出力</button>
     </div>
 
 <script>
-    // 内部データ構造 (v0.121準拠)
-    let db = JSON.parse(localStorage.getItem('pos_v121_db') || '[]');
-    let config = JSON.parse(localStorage.getItem('pos_v121_cfg') || '{"state":"⚠未確認","setup":{"A":0,"B":0,"C":0,"D":0,"E":0,"c":0}}');
+    // 内部データ構造 (v0.121_20260610A)
+    let db = JSON.parse(localStorage.getItem('pos_v121a_db') || '[]');
+    let config = JSON.parse(localStorage.getItem('pos_v121a_cfg') || '{"state":"⚪️営業前","last_date":"","setup":{"A":0,"B":0,"C":0,"D":0,"E":0,"b":0}}');
     
-    // 現在入力中の1トランザクションの未確定ステート
+    // 未確定ステート
     let currentTx = {
-        mode: '通常', // 通常, －, 景
-        products: [], // {code, quantity, type} typeは'sale'または'present' (－はquantityをマイナスにする)
-        stamp: '',
-        traffic: '',
-        attr1: '',
-        attr2: '',
-        channel: 'Street' // デフォルト
+        products: [], // {code, qty, type}
+        stamp: '', traffic: '', attr1: '', attr2: '',
+        channel: 'Street'
     };
 
-    // 直前の保存データ保持（1世代のみ登録直後Undo用）
-    let lastSavedTxIndex = null;
+    let isPresentMode = false;   // 景品モードフラグ
+    let selectedLogIndex = null; // 修正のためにタップ選択されたログのdbインデックス
+    let modifyingIndex = null;   // 現在修正編集中のレコードのdbインデックス
 
-    // 起動時初期化
     window.onload = function() {
+        checkDateReset();
         updateUI();
+        setInterval(checkDateReset, 60000); // 1分ごとに日付（0時）を監視
     };
 
-    function setMode(m) {
-        currentTx.mode = m;
-        const badge = document.getElementById('mode-badge');
-        badge.className = 'mode-indicator';
-        if(m==='通常') badge.classList.add('mode-normal');
-        if(m==='－') badge.classList.add('mode-minus');
-        if(m==='景') badge.classList.add('mode-present');
-        badge.innerText = m + '販売';
-
-        ['mod-normal','mod-minus','mod-present'].forEach(id => document.getElementById(id).classList.remove('active-mode'));
-        if(m==='通常') document.getElementById('mod-normal').classList.add('active-mode');
-        if(m==='－') document.getElementById('mod-minus').classList.add('active-mode');
-        if(m==='景') document.getElementById('mod-present').classList.add('active-mode');
+    // 0時判定で営業前に戻す
+    function checkDateReset() {
+        let todayStr = new Date().toLocaleDateString('ja-JP');
+        if (config.last_date && config.last_date !== todayStr) {
+            config.state = "⚪️営業前";
+            saveConfig();
+            updateUI();
+        }
+        config.last_date = todayStr;
+        saveConfig();
     }
 
-    function changeState(s) {
-        config.state = s;
+    // 営業ステートトグル切り替え
+    function toggleOpState() {
+        let states = ["⚪️営業前", "🟢営業中", "🔴営業後"];
+        let idx = states.indexOf(config.state);
+        let nextState = states[(idx + 1) % states.length];
+        config.state = nextState;
         saveConfig();
+
+        // ログ保存
+        let timestamp = new Date().toLocaleString('ja-JP');
+        db.push({
+            type: 'SYSTEM_LOG',
+            timestamp: timestamp,
+            note: `${nextState}へ切り替え`,
+            state: nextState
+        });
+        saveDB();
         updateUI();
     }
 
     function inputSetup() {
-        let res = prompt("仕込数量を入力してください (例: A30,B20,c15)", getSetupString());
+        let res = prompt("仕込数量を入力してください (例: A30,B20,b15)", getSetupString());
         if (res !== null) {
-            let newSetup = {"A":0,"B":0,"C":0,"D":0,"E":0,"c":0};
+            let newSetup = {"A":0,"B":0,"C":0,"D":0,"E":0,"b":0};
             let pairs = res.split(',');
             pairs.forEach(p => {
-                let match = p.trim().match(/^([A-Eca-z])(\d+)$/);
+                let match = p.trim().match(/^([A-EBb])(\d+)$/);
                 if(match) {
-                    newSetup[match[1]] = parseInt(match[2]);
+                    let code = match[1];
+                    if(code === 'c') code = 'b'; // 念のため旧互換
+                    newSetup[code] = parseInt(match[2]);
                 }
             });
             config.setup = newSetup;
@@ -227,19 +228,28 @@
         return Object.keys(config.setup).map(k => k + config.setup[k]).join(',');
     }
 
-    function adjustStock() {
-        let note = prompt("理論在庫の差異修正、または特記事項を入力してください:");
+    function inputSpecialNote() {
+        let note = prompt("特記事項を入力してください:");
         if(note) {
             let timestamp = new Date().toLocaleString('ja-JP');
             db.push({
-                type: 'SYSTEM_LOG',
+                type: 'SPECIAL_NOTE',
                 timestamp: timestamp,
                 note: note,
                 state: config.state
             });
             saveDB();
-            alert("修正ログを記録しました。");
             updateUI();
+        }
+    }
+
+    function togglePresentMode() {
+        isPresentMode = !isPresentMode;
+        const btn = document.getElementById('btn-pres');
+        if(isPresentMode) {
+            btn.classList.add('mode-active-pres');
+        } else {
+            btn.classList.remove('mode-active-pres');
         }
     }
 
@@ -247,19 +257,31 @@
         let qty = 1;
         let type = 'sale';
         
-        if (currentTx.mode === '－') {
-            qty = -1;
-        } else if (currentTx.mode === '景') {
+        if (isPresentMode) {
             type = 'present';
         }
         
         currentTx.products.push({ code: code, qty: qty, type: type });
+        
+        // 「景」モードは商品1キー押下で自動解除
+        if (isPresentMode) {
+            isPresentMode = false;
+            document.getElementById('btn-pres').classList.remove('mode-active-pres');
+        }
+        
         updateDisplay();
+    }
+
+    function execBackspace() {
+        if (currentTx.products.length > 0) {
+            currentTx.products.pop();
+            updateDisplay();
+        }
     }
 
     function setAttr(group, value) {
         if (currentTx[group] === value) {
-            currentTx[group] = ''; // トグル解除
+            currentTx[group] = ''; 
         } else {
             currentTx[group] = value;
         }
@@ -286,13 +308,36 @@
     }
 
     function updateDisplay() {
-        let pText = currentTx.products.map(p => (p.qty < 0 ? '－' : (p.type === 'present' ? '景:' : '')) + p.code).join(' / ');
+        let pText = currentTx.products.map(p => (p.type === 'present' ? '景:' : '') + p.code).join(' / ');
         let attrs = [currentTx.stamp, currentTx.traffic, currentTx.attr1, currentTx.attr2].filter(Boolean).join(',');
         
         let displayStr = pText || "READY";
         if(attrs) displayStr += " 【" + attrs + "】";
         
+        if (modifyingIndex !== null) {
+            displayStr = "【修正中】" + displayStr;
+        }
+        
         document.getElementById('display').innerText = displayStr;
+    }
+
+    function execUndoOrClear() {
+        // 入力中のデータがある場合は「消」の動作
+        if (currentTx.products.length > 0 || currentTx.stamp || currentTx.traffic || currentTx.attr1 || currentTx.attr2 || modifyingIndex !== null) {
+            clearCurrent();
+        } else {
+            // 入力中が空の場合は「直前の1件をUndo（削除）」
+            // TRANSACTION, SYSTEM_LOG, SPECIAL_NOTE いずれの直近でも削除対象とする
+            if (db.length > 0) {
+                if (confirm("直前のログ登録1件を削除(Undo)しますか？")) {
+                    db.pop();
+                    saveDB();
+                    updateUI();
+                }
+            } else {
+                alert("取り消すデータがありません。");
+            }
+        }
     }
 
     function clearCurrent() {
@@ -301,7 +346,9 @@
         currentTx.traffic = '';
         currentTx.attr1 = '';
         currentTx.attr2 = '';
-        setMode('通常');
+        modifyingIndex = null;
+        isPresentMode = false;
+        document.getElementById('btn-pres').classList.remove('mode-active-pres');
         updateAttrButtons();
         updateDisplay();
     }
@@ -309,53 +356,76 @@
     function saveTransaction() {
         if(currentTx.products.length === 0) return alert("商品が選択されていません");
         
-        let timestamp = new Date().toLocaleString('ja-JP');
-        
-        // 1会計 = 1レコードの構造化データオブジェクト
-        let record = {
-            type: 'TRANSACTION',
-            timestamp: timestamp,
-            products: [...currentTx.products],
-            stamp: currentTx.stamp || '無',
-            traffic: currentTx.traffic || '他',
-            attr1: currentTx.attr1 || '他',
-            attr2: currentTx.attr2 || 'グ',
-            channel: currentTx.channel,
-            state: config.state
-        };
-        
-        db.push(record);
-        lastSavedTxIndex = db.length - 1; // Undo用にインデックスを保持
+        if (modifyingIndex !== null) {
+            // 【修正確定時の動作】元のインデックスのデータを書き換え（元の位置・タイムスタンプを維持）
+            db[modifyingIndex].products = [...currentTx.products];
+            db[modifyingIndex].stamp = currentTx.stamp || '無';
+            db[modifyingIndex].traffic = currentTx.traffic || '他';
+            db[modifyingIndex].attr1 = currentTx.attr1 || '他';
+            db[modifyingIndex].attr2 = currentTx.attr2 || 'グ';
+            modifyingIndex = null;
+        } else {
+            // 【新規登録】
+            let timestamp = new Date().toLocaleString('ja-JP');
+            let record = {
+                type: 'TRANSACTION',
+                timestamp: timestamp,
+                products: [...currentTx.products],
+                stamp: currentTx.stamp || '無',
+                traffic: currentTx.traffic || '他',
+                attr1: currentTx.attr1 || '他',
+                attr2: currentTx.attr2 || 'グ',
+                channel: currentTx.channel,
+                state: config.state
+            };
+            db.push(record);
+        }
         
         saveDB();
         clearCurrent();
         updateUI();
     }
 
-    function execUndo() {
-        if(lastSavedTxIndex !== null && db[lastSavedTxIndex]) {
-            if(confirm("直前に登録した1件を削除(Undo)しますか？")) {
-                db.splice(lastSavedTxIndex, 1);
-                lastSavedTxIndex = null;
-                saveDB();
-                updateUI();
-                alert("取り消しました");
-            }
-        } else {
-            alert("登録直後のみUndo可能です。連続した取り消しや過去データの修正は『在庫修正』からログを残すか、CSVで出力して対応してください。");
+    // 過去ログをタップした時の選択処理
+    function selectLog(idx) {
+        selectedLogIndex = idx;
+        updateLogAreaDisplay();
+    }
+
+    // 修正ボタン押下時
+    function execModify() {
+        if (selectedLogIndex === null || !db[selectedLogIndex]) {
+            return alert("ログ表示エリアから修正したい行をタップして選択してください。");
+        }
+        
+        let target = db[selectedLogIndex];
+        if (target.type !== 'TRANSACTION') {
+            return alert("修正できるのは販売トランザクション（会計データ）のみです。");
+        }
+
+        if (confirm("選択したデータを修正モードで読み込みますか？")) {
+            modifyingIndex = selectedLogIndex;
+            selectedLogIndex = null; // 選択状態クリア
+            
+            // データを未確定バッファにロード
+            currentTx.products = [...target.products];
+            currentTx.stamp = target.stamp === '無' ? '' : target.stamp;
+            currentTx.traffic = target.traffic === '他' ? '' : target.traffic;
+            currentTx.attr1 = target.attr1 === '他' ? '' : target.attr1;
+            currentTx.attr2 = target.attr2 === 'グ' ? '' : target.attr2;
+            
+            updateAttrButtons();
+            updateDisplay();
+            updateLogAreaDisplay();
         }
     }
 
     function calculateStock() {
-        // 仕込初期化
         let stock = { ...config.setup };
-        
-        // トランザクションから加減算
         db.forEach(item => {
             if(item.type === 'TRANSACTION') {
                 item.products.forEach(p => {
                     if(stock[p.code] !== undefined) {
-                        // 販売(qty:1)ならマイナス、取消(qty:-1)ならプラス、景品(type:'present')も在庫を消費するのでマイナス
                         stock[p.code] -= p.qty;
                     }
                 });
@@ -364,24 +434,48 @@
         return stock;
     }
 
+    // 過去ログ表示エリアの描画（古いものから順に描画し、下部へスクロールすることでスーパーのレジ風にする）
+    function updateLogAreaDisplay() {
+        const logArea = document.getElementById('log-area');
+        logArea.innerHTML = '';
+        
+        db.forEach((item, idx) => {
+            let line = document.createElement('div');
+            line.className = 'log-line';
+            if (idx === selectedLogIndex) line.classList.add('selected');
+            
+            // タップで選択可能にする
+            line.onclick = () => selectLog(idx);
+            
+            let timeStr = item.timestamp.split(' ')[1] || item.timestamp; // 時刻部分を抽出
+            
+            if (item.type === 'TRANSACTION') {
+                let pText = item.products.map(p => (p.type === 'present' ? '景:' : '') + p.code).join('/');
+                line.innerText = `[${timeStr}] 会計: ${pText} (${item.stamp},${item.traffic},${item.attr1},${item.attr2})`;
+            } else if (item.type === 'SYSTEM_LOG') {
+                line.innerText = `[${timeStr}] ${item.note}`;
+            } else if (item.type === 'SPECIAL_NOTE') {
+                line.innerText = `[${timeStr}] 特記: ${item.note}`;
+            }
+            
+            logArea.appendChild(line);
+        });
+        
+        // 常に最新（最下部）へ自動スクロール
+        logArea.scrollTop = logArea.scrollHeight;
+    }
+
     function updateUI() {
-        document.getElementById('op-state').innerText = config.state;
-        document.getElementById('tx-count').innerText = `蓄積: ${db.filter(d=>d.type==='TRANSACTION').length}件`;
+        // ステータス表示
+        document.getElementById('status-badge').innerText = config.state;
         
         // 理論在庫の再計算と表示
         let currentStock = calculateStock();
         let stockStr = Object.keys(currentStock).map(k => `${k}:${currentStock[k]}`).join(' | ');
-        document.getElementById('stock-display').innerText = "理論在庫: " + stockStr;
+        document.getElementById('stock-display').innerText = stockStr;
 
-        // 営業状態ボタンのハイライト
-        let btns = document.getElementsByClassName('id-state');
-        for(let i=0; i<btns.length; i++) {
-            if(btns[i].innerText.includes(config.state.replace('✓', '').replace('⚠', ''))) {
-                btns[i].classList.add('state-active');
-            } else {
-                btns[i].classList.remove('state-active');
-            }
-        }
+        // 過去ログ表示更新
+        updateLogAreaDisplay();
     }
 
     function exportCSV() {
@@ -395,6 +489,8 @@
                 csvRows.push(`"TRANSACTION","${r.timestamp}","${detail}","${r.stamp}","${r.traffic}","${r.attr1}","${r.attr2}","${r.channel}","${r.state}",""`);
             } else if(r.type === 'SYSTEM_LOG') {
                 csvRows.push(`"SYSTEM_LOG","${r.timestamp}","","","","","","","${r.state}","${r.note.replace(/"/g, '""')}"`);
+            } else if(r.type === 'SPECIAL_NOTE') {
+                csvRows.push(`"SPECIAL_NOTE","${r.timestamp}","","","","","","","${r.state}","特記事項: ${r.note.replace(/"/g, '""')}"`);
             }
         });
 
@@ -409,14 +505,15 @@
 
         if(confirm("データを完全に初期化(リセット)しますか？\n※CSVが正常に保存されたことを確認した後に実行してください。")) {
             db = [];
-            lastSavedTxIndex = null;
+            selectedLogIndex = null;
+            modifyingIndex = null;
             saveDB();
             updateUI();
         }
     }
 
-    function saveDB() { localStorage.setItem('pos_v121_db', JSON.stringify(db)); }
-    function saveConfig() { localStorage.setItem('pos_v121_cfg', JSON.stringify(config)); }
+    function saveDB() { localStorage.setItem('pos_v121a_db', JSON.stringify(db)); }
+    function saveConfig() { localStorage.setItem('pos_v121a_cfg', JSON.stringify(config)); }
 </script>
 </body>
 </html>
