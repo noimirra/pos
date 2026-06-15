@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>おにぎりPOS v0.121_20260610A</title>
+    <title>おにぎりPOS v0.121_20260615A</title>
     <style>
         :root {
             --bg-color: #121212;
@@ -81,7 +81,8 @@
         .mode-active-pres { outline: 2px solid #fff; box-shadow: 0 0 8px rgba(255,255,255,0.5); }
 
         /* 商品ボタン */
-        .btn-product { min-height: 48px; font-size: 20px; background: #3a3a3c; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .btn-product { min-height: 48px; font-size: 20px; background: #3a3a3c; box-shadow: 0 2px 4px rgba(0,0,0,0.3); transition: background 0.1s; }
+        .selected-prod { background: var(--blue) !important; color: #fff !important; }
 
         /* 属性ボタン */
         .btn-attr { background: #2c2c2e; font-size: 14px; min-height: 40px; }
@@ -115,12 +116,12 @@
 
     <div class="section-title">商品</div>
     <div class="grid-6">
-        <button class="btn-product" onclick="pressProduct('A')">A</button>
-        <button class="btn-product" onclick="pressProduct('B')">B</button>
-        <button class="btn-product" onclick="pressProduct('C')">C</button>
-        <button class="btn-product" onclick="pressProduct('D')">D</button>
-        <button class="btn-product" onclick="pressProduct('E')">E</button>
-        <button class="btn-product" style="background:#545456;" onclick="pressProduct('b')">b</button>
+        <button id="prod-A" class="btn-product" onclick="pressProduct('A')">A</button>
+        <button id="prod-B" class="btn-product" onclick="pressProduct('B')">B</button>
+        <button id="prod-C" class="btn-product" onclick="pressProduct('C')">C</button>
+        <button id="prod-D" class="btn-product" onclick="pressProduct('D')">D</button>
+        <button id="prod-E" class="btn-product" onclick="pressProduct('E')">E</button>
+        <button id="prod-b" class="btn-product" style="background:#545456;" onclick="pressProduct('b')">b</button>
     </div>
 
     <div class="section-title">属性（スタンプ / 来店 / 属性1 / 属性2）</div>
@@ -152,7 +153,7 @@
     </div>
 
 <script>
-    // 内部データ構造 (v0.121_20260610A)
+    // 内部データ構造 (v0.121_20260615A)
     let db = JSON.parse(localStorage.getItem('pos_v121a_db') || '[]');
     let config = JSON.parse(localStorage.getItem('pos_v121a_cfg') || '{"state":"⚪️営業前","last_date":"","setup":{"A":0,"B":0,"C":0,"D":0,"E":0,"b":0}}');
     
@@ -209,15 +210,25 @@
         let res = prompt("仕込数量を入力してください (例: A30,B20,b15)", getSetupString());
         if (res !== null) {
             let newSetup = {"A":0,"B":0,"C":0,"D":0,"E":0,"b":0};
-            let pairs = res.split(',');
-            pairs.forEach(p => {
-                let match = p.trim().match(/^([A-EBb])(\d+)$/);
-                if(match) {
-                    let code = match[1];
-                    if(code === 'c') code = 'b'; // 念のため旧互換
-                    newSetup[code] = parseInt(match[2]);
-                }
-            });
+            
+            // 全角英数字・記号を半角に変換、各種区切り文字をスペースに統一してパース
+            let normalized = res.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) {
+                return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+            })
+            .replace(/[：，、。・]/g, ' ')
+            .replace(/[:,;\t\n]/g, ' ');
+
+            // 商品コード[A-EBb]と数字のペアをグローバル検索
+            let matches = normalized.match(/([A-EBb])\s*(\d+)/g);
+            if (matches) {
+                matches.forEach(m => {
+                    let parts = m.match(/([A-EBb])\s*(\d+)/);
+                    if (parts) {
+                        let code = parts[1];
+                        newSetup[code] = parseInt(parts[2], 10);
+                    }
+                });
+            }
             config.setup = newSetup;
             saveConfig();
             updateUI();
@@ -319,6 +330,19 @@
         }
         
         document.getElementById('display').innerText = displayStr;
+
+        // 商品ボタンの選択中ハイライト（入力感）の更新
+        let currentCodes = currentTx.products.map(p => p.code);
+        ['A', 'B', 'C', 'D', 'E', 'b'].forEach(code => {
+            let btn = document.getElementById('prod-' + code);
+            if (btn) {
+                if (currentCodes.includes(code)) {
+                    btn.classList.add('selected-prod');
+                } else {
+                    btn.classList.remove('selected-prod');
+                }
+            }
+        });
     }
 
     function execUndoOrClear() {
@@ -327,7 +351,6 @@
             clearCurrent();
         } else {
             // 入力中が空の場合は「直前の1件をUndo（削除）」
-            // TRANSACTION, SYSTEM_LOG, SPECIAL_NOTE いずれの直近でも削除対象とする
             if (db.length > 0) {
                 if (confirm("直前のログ登録1件を削除(Undo)しますか？")) {
                     db.pop();
@@ -434,7 +457,7 @@
         return stock;
     }
 
-    // 過去ログ表示エリアの描画（古いものから順に描画し、下部へスクロールすることでスーパーのレジ風にする）
+    // 過去ログ表示エリアの描画（秒数非表示、内部情報保持）
     function updateLogAreaDisplay() {
         const logArea = document.getElementById('log-area');
         logArea.innerHTML = '';
@@ -444,10 +467,11 @@
             line.className = 'log-line';
             if (idx === selectedLogIndex) line.classList.add('selected');
             
-            // タップで選択可能にする
             line.onclick = () => selectLog(idx);
             
-            let timeStr = item.timestamp.split(' ')[1] || item.timestamp; // 時刻部分を抽出
+            // 時刻部分を取り出し、秒(後ろの:xx)を削る
+            let fullTimeStr = item.timestamp.split(' ')[1] || item.timestamp; 
+            let timeStr = fullTimeStr.replace(/:[^:]+$/, ''); // 「時:分」の形にする
             
             if (item.type === 'TRANSACTION') {
                 let pText = item.products.map(p => (p.type === 'present' ? '景:' : '') + p.code).join('/');
@@ -461,7 +485,6 @@
             logArea.appendChild(line);
         });
         
-        // 常に最新（最下部）へ自動スクロール
         logArea.scrollTop = logArea.scrollHeight;
     }
 
