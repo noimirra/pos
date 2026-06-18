@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>おにぎりPOS v0.121_20260615A</title>
+    <title>おにぎりPOS v0.121_20260615B</title>
     <style>
         :root {
             --bg-color: #121212;
@@ -153,7 +153,7 @@
     </div>
 
 <script>
-    // 内部データ構造 (v0.121_20260615A)
+    // 内部データ構造 (v0.121_20260615B)
     let db = JSON.parse(localStorage.getItem('pos_v121a_db') || '[]');
     let config = JSON.parse(localStorage.getItem('pos_v121a_cfg') || '{"state":"⚪️営業前","last_date":"","setup":{"A":0,"B":0,"C":0,"D":0,"E":0,"b":0}}');
     
@@ -174,7 +174,6 @@
         setInterval(checkDateReset, 60000); // 1分ごとに日付（0時）を監視
     };
 
-    // 0時判定で営業前に戻す
     function checkDateReset() {
         let todayStr = new Date().toLocaleDateString('ja-JP');
         if (config.last_date && config.last_date !== todayStr) {
@@ -186,7 +185,6 @@
         saveConfig();
     }
 
-    // 営業ステートトグル切り替え
     function toggleOpState() {
         let states = ["⚪️営業前", "🟢営業中", "🔴営業後"];
         let idx = states.indexOf(config.state);
@@ -194,7 +192,6 @@
         config.state = nextState;
         saveConfig();
 
-        // ログ保存
         let timestamp = new Date().toLocaleString('ja-JP');
         db.push({
             type: 'SYSTEM_LOG',
@@ -211,14 +208,12 @@
         if (res !== null) {
             let newSetup = {"A":0,"B":0,"C":0,"D":0,"E":0,"b":0};
             
-            // 全角英数字・記号を半角に変換、各種区切り文字をスペースに統一してパース
             let normalized = res.replace(/[Ａ-Ｚａ-ｚ０-９]/g, function(s) {
                 return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
             })
             .replace(/[：，、。・]/g, ' ')
             .replace(/[:,;\t\n]/g, ' ');
 
-            // 商品コード[A-EBb]と数字のペアをグローバル検索
             let matches = normalized.match(/([A-EBb])\s*(\d+)/g);
             if (matches) {
                 matches.forEach(m => {
@@ -274,7 +269,6 @@
         
         currentTx.products.push({ code: code, qty: qty, type: type });
         
-        // 「景」モードは商品1キー押下で自動解除
         if (isPresentMode) {
             isPresentMode = false;
             document.getElementById('btn-pres').classList.remove('mode-active-pres');
@@ -331,7 +325,6 @@
         
         document.getElementById('display').innerText = displayStr;
 
-        // 商品ボタンの選択中ハイライト（入力感）の更新
         let currentCodes = currentTx.products.map(p => p.code);
         ['A', 'B', 'C', 'D', 'E', 'b'].forEach(code => {
             let btn = document.getElementById('prod-' + code);
@@ -346,11 +339,9 @@
     }
 
     function execUndoOrClear() {
-        // 入力中のデータがある場合は「消」の動作
         if (currentTx.products.length > 0 || currentTx.stamp || currentTx.traffic || currentTx.attr1 || currentTx.attr2 || modifyingIndex !== null) {
             clearCurrent();
         } else {
-            // 入力中が空の場合は「直前の1件をUndo（削除）」
             if (db.length > 0) {
                 if (confirm("直前のログ登録1件を削除(Undo)しますか？")) {
                     db.pop();
@@ -380,7 +371,6 @@
         if(currentTx.products.length === 0) return alert("商品が選択されていません");
         
         if (modifyingIndex !== null) {
-            // 【修正確定時の動作】元のインデックスのデータを書き換え（元の位置・タイムスタンプを維持）
             db[modifyingIndex].products = [...currentTx.products];
             db[modifyingIndex].stamp = currentTx.stamp || '無';
             db[modifyingIndex].traffic = currentTx.traffic || '他';
@@ -388,7 +378,6 @@
             db[modifyingIndex].attr2 = currentTx.attr2 || 'グ';
             modifyingIndex = null;
         } else {
-            // 【新規登録】
             let timestamp = new Date().toLocaleString('ja-JP');
             let record = {
                 type: 'TRANSACTION',
@@ -409,7 +398,6 @@
         updateUI();
     }
 
-    // 過去ログをタップした時の選択処理
     function selectLog(idx) {
         selectedLogIndex = idx;
         updateLogAreaDisplay();
@@ -428,13 +416,12 @@
 
         if (confirm("選択したデータを修正モードで読み込みますか？")) {
             modifyingIndex = selectedLogIndex;
-            selectedLogIndex = null; // 選択状態クリア
+            selectedLogIndex = null;
             
-            // データを未確定バッファにロード
             currentTx.products = [...target.products];
             currentTx.stamp = target.stamp === '無' ? '' : target.stamp;
             currentTx.traffic = target.traffic === '他' ? '' : target.traffic;
-            currentTx.attr1 = target.attr1 === '他' ? '' : target.attr1;
+            currentTx.attr1 = target.attr1 === '技術' || target.attr1 === '他' ? '' : target.attr1;
             currentTx.attr2 = target.attr2 === 'グ' ? '' : target.attr2;
             
             updateAttrButtons();
@@ -457,7 +444,6 @@
         return stock;
     }
 
-    // 過去ログ表示エリアの描画（秒数非表示、内部情報保持）
     function updateLogAreaDisplay() {
         const logArea = document.getElementById('log-area');
         logArea.innerHTML = '';
@@ -469,9 +455,8 @@
             
             line.onclick = () => selectLog(idx);
             
-            // 時刻部分を取り出し、秒(後ろの:xx)を削る
             let fullTimeStr = item.timestamp.split(' ')[1] || item.timestamp; 
-            let timeStr = fullTimeStr.replace(/:[^:]+$/, ''); // 「時:分」の形にする
+            let timeStr = fullTimeStr.replace(/:[^:]+$/, '');
             
             if (item.type === 'TRANSACTION') {
                 let pText = item.products.map(p => (p.type === 'present' ? '景:' : '') + p.code).join('/');
@@ -489,18 +474,16 @@
     }
 
     function updateUI() {
-        // ステータス表示
         document.getElementById('status-badge').innerText = config.state;
         
-        // 理論在庫の再計算と表示
         let currentStock = calculateStock();
         let stockStr = Object.keys(currentStock).map(k => `${k}:${currentStock[k]}`).join(' | ');
         document.getElementById('stock-display').innerText = stockStr;
 
-        // 過去ログ表示更新
         updateLogAreaDisplay();
     }
 
+    // iPhone用ダウンロード処理の安定化修正（Blobオブジェクト生成方式）
     function exportCSV() {
         if(db.length === 0) return alert("データがありません");
         
@@ -517,14 +500,22 @@
             }
         });
 
-        let csvContent = "data:text/csv;charset=utf-8,\uFEFF" + csvRows.join("\n");
-        const encodedUri = encodeURI(csvContent);
+        // BOM付きのCSVテキストを作成
+        let csvString = "\uFEFF" + csvRows.join("\n");
+        
+        // Blob(データ塊)オブジェクトに変換して、iOSがファイルとして認識できる一時的なURLを構築
+        let blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+        let url = URL.createObjectURL(blob);
+        
         const link = document.createElement("a");
-        link.setAttribute("href", encodedUri);
+        link.setAttribute("href", url);
         link.setAttribute("download", `POS_DATA_${new Date().toISOString().slice(0,10)}.csv`);
         document.body.appendChild(link);
         link.click();
+        
+        // メモリ破棄と要素削除
         document.body.removeChild(link);
+        URL.revokeObjectURL(url);
 
         if(confirm("データを完全に初期化(リセット)しますか？\n※CSVが正常に保存されたことを確認した後に実行してください。")) {
             db = [];
