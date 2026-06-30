@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>🍙POS 260630C_v0.121</title>
+    <title>🍙POS 260630D_v0.121</title>
     <style>
         :root {
             --bg-color: #121212;
@@ -126,7 +126,7 @@
 
     <div class="section-title">属性（スタンプ / 来店 / 属性1 / 属性2）</div>
     <div class="grid-4">
-        <button class="btn-attr att-stamp" onclick="setAttr('stamp', '有')">有</button>
+        <button class="btn-attr att-stamp" onclick="setAttr('stamp', '有')"> 有</button>
         <button class="btn-attr att-stamp" onclick="setAttr('stamp', '無')">無</button>
         <button class="btn-attr att-traffic" onclick="setAttr('traffic', '歩')">歩</button>
         <button class="btn-attr att-traffic" onclick="setAttr('traffic', '車')">車</button>
@@ -153,7 +153,7 @@
     </div>
 
 <script>
-    // 内部データ構造 (v0.121_20260630C)
+    // 内部データ構造 (v0.121_20260630D)
     let db = JSON.parse(localStorage.getItem('pos_v121a_db') || '[]');
     let config = JSON.parse(localStorage.getItem('pos_v121a_cfg') || '{"state":"⚪️営業前","last_date":"","setup":{"A":0,"B":0,"C":0,"D":0,"E":0,"b":0},"prev_setup":{"A":0,"B":0,"C":0,"D":0,"E":0,"b":0}}');
     
@@ -330,7 +330,7 @@
     }
 
     function updateDisplay() {
-        let pText = currentTx.products.map(p => (p.type === 'present' ? '景:' : '') + p.code).join(' / ');
+        let pText = currentTx.products.map(p => (p.type === 'present' ? '🎁' : '') + p.code).join(' / ');
         let attrs = [currentTx.stamp, currentTx.traffic, currentTx.attr1, currentTx.attr2].filter(Boolean).join(',');
         
         let displayStr = pText || "READY";
@@ -449,7 +449,8 @@
     function calculateStock() {
         let stock = { ...config.setup };
         db.forEach(item => {
-            if(item.type === 'TRANSACTION') {
+            // 本日の日付（config.last_date）から始まるTRANSACTIONレコードのみを計算対象とする
+            if(item.type === 'TRANSACTION' && item.timestamp && item.timestamp.startsWith(config.last_date)) {
                 item.products.forEach(p => {
                     if(stock[p.code] !== undefined) {
                         stock[p.code] -= p.qty;
@@ -476,7 +477,7 @@
             let timeStr = fullTimeStr.replace(/:[^:]+$/, '');
             
             if (item.type === 'TRANSACTION') {
-                let pText = item.products.map(p => (p.type === 'present' ? '景:' : '') + p.code).join('/');
+                let pText = item.products.map(p => (p.type === 'present' ? '🎁' : '') + p.code).join('/');
                 line.innerText = `[${timeStr}] 会計: ${pText} (${item.stamp},${item.traffic},${item.attr1},${item.attr2})`;
             } else if (item.type === 'SYSTEM_LOG') {
                 line.innerText = `[${timeStr}] ${item.note}`;
