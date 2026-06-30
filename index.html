@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>🍙POS 260630A_v0.121</title>
+    <title>🍙POS 260630B_v0.121</title>
     <style>
         :root {
             --bg-color: #121212;
@@ -153,11 +153,10 @@
     </div>
 
 <script>
-    // 内部データ構造 (v0.121_20260630A)
+    // 内部データ構造 (v0.121_20260630B)
     let db = JSON.parse(localStorage.getItem('pos_v121a_db') || '[]');
     let config = JSON.parse(localStorage.getItem('pos_v121a_cfg') || '{"state":"⚪️営業前","last_date":"","setup":{"A":0,"B":0,"C":0,"D":0,"E":0,"b":0},"prev_setup":{"A":0,"B":0,"C":0,"D":0,"E":0,"b":0}}');
     
-    // 互換性維持のための初期化
     if (!config.prev_setup) {
         config.prev_setup = { ...config.setup };
     }
@@ -183,7 +182,6 @@
         let todayStr = new Date().toLocaleDateString('ja-JP');
         if (config.last_date && config.last_date !== todayStr) {
             config.state = "⚪️営業前";
-            // 日付変更時、現在の設定値を次回引き継ぎ用に退避させてから0リセット
             config.prev_setup = { ...config.setup };
             config.setup = {"A":0,"B":0,"C":0,"D":0,"E":0,"b":0};
             saveConfig();
@@ -233,14 +231,13 @@
                 });
             }
             config.setup = newSetup;
-            config.prev_setup = { ...newSetup }; // 最新入力値を常時バックアップ
+            config.prev_setup = { ...newSetup };
             saveConfig();
             updateUI();
         }
     }
 
     function getSetupString() {
-        // 設定値が全て0の場合は退避させておいた前回値を引き継いで表示
         let isAllZero = Object.values(config.setup).every(v => v === 0);
         let targetSetup = isAllZero ? config.prev_setup : config.setup;
         return Object.keys(targetSetup).map(k => k + targetSetup[k]).join('　');
@@ -286,7 +283,6 @@
             document.getElementById('btn-pres').classList.remove('mode-active-pres');
         }
         
-        // 瞬間フラッシュ（押下感）の制御
         let btn = document.getElementById('prod-' + code);
         if (btn && btn.classList.contains('selected-prod')) {
             btn.classList.remove('selected-prod');
@@ -466,6 +462,7 @@
 
     function updateLogAreaDisplay() {
         const logArea = document.getElementById('log-area');
+        if (!logArea) return;
         logArea.innerHTML = '';
         
         db.forEach((item, idx) => {
@@ -494,11 +491,13 @@
     }
 
     function updateUI() {
-        document.getElementById('status-badge').innerText = config.state;
+        const badge = document.getElementById('status-badge');
+        if (badge) badge.innerText = config.state;
         
         let currentStock = calculateStock();
         let stockStr = Object.keys(currentStock).map(k => `${k}:${currentStock[k]}`).join(' | ');
-        document.getElementById('stock-display').innerText = stockStr;
+        const stockDisp = document.getElementById('stock-display');
+        if (stockDisp) stockDisp.innerText = stockStr;
 
         updateLogAreaDisplay();
     }
